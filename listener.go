@@ -119,8 +119,8 @@ func (client *ADSBClient) parseMessage(message string) (ADSBMessage, error) {
 	isOnGround, _ := strconv.ParseBool(messageParts[21])
 
 	var adsbMessage = ADSBMessage{
-		MessageType:          MESSAGE_TYPE(messageParts[0]),
-		TransmissionType:     TRANSMISSION_TYPE(transmissionType),
+		MessageType:          messageParts[0],
+		TransmissionType:     transmissionType,
 		SessionId:            messageParts[2],
 		AircraftId:           messageParts[3],
 		HexIdent:             messageParts[4],
