@@ -25,7 +25,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./adsb-tcp-listener  # Assumes Dockerfile is in the root, change if needed
-          file: ./Dockerfile  # Path to your Dockerfile
           push: true
           tags: fabricekabongo/adsb-tcp-listener:${{ github.sha }}
 
