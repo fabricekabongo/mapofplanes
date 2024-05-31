@@ -25,6 +25,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./adsb-ingestion-service  # Assumes Dockerfile is in the root, change if needed
+          file: ./adsb-ingestion-service/Dockerfile  # Path to your Dockerfile
           push: true
           tags: fabricekabongo/adsb-ingestion-service:${{ github.sha }}
 
