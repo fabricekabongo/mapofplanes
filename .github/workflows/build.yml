@@ -1,4 +1,4 @@
-name: Build and Push Adsb TCP Listener Docker image
+name: Build and Push Docker images
 
 on:
   push:
