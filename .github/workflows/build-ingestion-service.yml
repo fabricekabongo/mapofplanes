@@ -1,4 +1,4 @@
-name: Build and Push Docker image
+name: Build Adsb Ingestion Service Docker image
 
 on:
   push:
