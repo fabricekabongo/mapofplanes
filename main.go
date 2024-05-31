@@ -9,16 +9,19 @@ import (
 )
 
 var (
-	adsbHost         = os.Getenv("ADSB_HOST")
-	adsbPort         = os.Getenv("ADSB_PORT")
-	rabbitmqHost     = os.Getenv("RABBITMQ_HOST")
-	rabbitmqPort     = os.Getenv("RABBITMQ_PORT")
-	rabbitmqUser     = os.Getenv("RABBITMQ_USER")
-	rabbitmqPassword = os.Getenv("RABBITMQ_PASSWORD")
-	rabbitmqQueue    = os.Getenv("RABBITMQ_QUEUE")
+	adsbHost      = os.Getenv("ADSB_HOST")
+	adsbPort      = os.Getenv("ADSB_PORT")
+	rabbitmqUrl   = os.Getenv("RABBITMQ_URL")
+	rabbitmqQueue = os.Getenv("RABBITMQ_QUEUE")
 )
 
 func main() {
+	// check if all environment variables are set
+	if adsbHost == "" || adsbPort == "" || rabbitmqUrl == "" || rabbitmqQueue == "" {
+		fmt.Println("Please set the following environment variables:")
+		fmt.Println("ADSB_HOST, ADSB_PORT, RABBITMQ_URL, RABBITMQ_QUEUE")
+		os.Exit(1)
+	}
 
 	fmt.Println("started adsb producer...")
 	client := NewADSBClient(adsbHost, adsbPort)
@@ -26,8 +29,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	rabbitConnectionString := fmt.Sprintf("amqp://%s:%s@%s:%s/", rabbitmqUser, rabbitmqPassword, rabbitmqHost, rabbitmqPort)
-	producer := NewProducer(rabbitConnectionString, rabbitmqQueue)
+
+	producer := NewProducer(rabbitmqUrl, rabbitmqQueue)
 
 	err = producer.connect()
 	if err != nil {
