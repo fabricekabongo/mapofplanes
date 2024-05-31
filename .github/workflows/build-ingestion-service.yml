@@ -2,11 +2,11 @@ name: Build and Push Docker image
 
 on:
   push:
-    branches:
-      - main  # Set this to the branch you use
+    branches:  [main]
+    paths: ['adsb-ingestion-service/**', '.github/workflows/**']  # Trigger only when relevant files change
 
 jobs:
-  build-and-push:
+  build-and-push-ingestion-service:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
@@ -25,6 +25,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./adsb-ingestion-service  # Assumes Dockerfile is in the root, change if needed
+          file: ./adsb-ingestion-service/Dockerfile  # Path to your Dockerfile
           push: true
           tags: fabricekabongo/adsb-ingestion-service:${{ github.sha }}
 
