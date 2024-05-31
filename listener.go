@@ -12,16 +12,26 @@ import (
 )
 
 type ADSBClient struct {
-	Address    string
-	Port       string
-	Connection net.Conn
+	Address         string
+	Port            string
+	Connection      net.Conn
+	MessagesChannel chan ADSBMessage
+	closeChannel    chan struct{}
 }
 
 func NewADSBClient(address string, port string) *ADSBClient {
 	return &ADSBClient{
-		Address: address,
-		Port:    port,
+		Address:         address,
+		Port:            port,
+		MessagesChannel: make(chan ADSBMessage, 2000),
+		closeChannel:    make(chan struct{}, 1),
 	}
+}
+
+func (client *ADSBClient) Close() {
+	client.closeChannel <- struct{}{}
+	time.Sleep(3 * time.Second)
+	client.Connection.Close()
 }
 
 func (client *ADSBClient) Connect() error {
@@ -44,13 +54,27 @@ func (client *ADSBClient) StartListening(workers int) {
 	reader := bufio.NewReader(client.Connection)
 	waitGroup := sync.WaitGroup{}
 	workChannel := make(chan string, workers)
+	continueScheduling := true
+	failureCount := 0
 
-	for {
+	go func() {
+		<-client.closeChannel
+		continueScheduling = false
+	}()
+
+	for continueScheduling {
 		message, err := reader.ReadString('\n')
 		if err != nil {
+			failureCount++
+			if failureCount > 10 {
+				panic(err)
+			}
+
 			log.Println("failed to read message", err)
 			continue
 		}
+
+		failureCount = 0
 		workChannel <- message
 		waitGroup.Add(1)
 
@@ -63,9 +87,11 @@ func (client *ADSBClient) StartListening(workers int) {
 				panic(err)
 			}
 
-			fmt.Println(parsedMessage)
+			client.MessagesChannel <- parsedMessage
 		}(message)
 	}
+
+	waitGroup.Wait()
 }
 
 func (client *ADSBClient) parseMessage(message string) (ADSBMessage, error) {

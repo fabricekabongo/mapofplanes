@@ -1,27 +1,66 @@
 package main
 
 import (
+	"encoding/json"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Producer struct {
 	address    string
+	queue      string
 	connection *amqp.Connection
+	channel    *amqp.Channel
 }
 
-func NewProducer(address string) *Producer {
+func NewProducer(address string, queue string) *Producer {
 	return &Producer{
 		address: address,
+		queue:   queue,
 	}
+}
+
+func (p *Producer) Close() {
+	p.connection.Close()
 }
 
 func (p *Producer) connect() error {
 	connection, err := amqp.Dial(p.address)
+	if err != nil {
+		return err
+	}
+
 	p.connection = connection
 
-	return err
+	channel, err := p.connection.Channel()
+	if err != nil {
+		return err
+	}
+
+	_, err = channel.QueueDeclare(p.queue, true, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+
+	p.channel = channel
+
+	return nil
 }
 
-func (p *Producer) SendMessage(queue string, message ADSBMessage) {
+func (p *Producer) SendMessage(message ADSBMessage) {
 
+	body, err := json.Marshal(message)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = p.channel.Publish("", p.queue, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        body,
+	})
+
+	if err != nil {
+		panic(err)
+	}
 }
