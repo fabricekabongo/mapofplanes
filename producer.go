@@ -58,6 +58,7 @@ func (p *Producer) SendMessage(message ADSBMessage) {
 	err = p.channel.Publish("", p.queue, false, false, amqp.Publishing{
 		ContentType: "text/plain",
 		Body:        body,
+		Expiration:  "5000", // 5 seconds
 	})
 
 	if err != nil {
