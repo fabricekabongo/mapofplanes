@@ -41,8 +41,14 @@ func (p *Consumer) Connect() error {
 	if err != nil {
 		return err
 	}
+	args := make(amqp.Table)
 
-	_, err = channel.QueueDeclare(p.queue, true, false, false, false, nil)
+	args["x-message-ttl"] = 5000            // 5 seconds
+	args["x-max-length"] = 500000           // 500k messages
+	args["x-overflow"] = "drop-head"        // drop oldest message
+	args["x-max-length-bytes"] = 2000000000 // 2GB
+
+	_, err = channel.QueueDeclare(p.queue, true, false, false, false, args)
 	if err != nil {
 		return err
 	}
