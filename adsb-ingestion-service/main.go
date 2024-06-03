@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 var (
@@ -68,7 +69,14 @@ func populateEnv() {
 
 func prepareTermination(consumer *Consumer, processor *SBS1Processor) {
 	log.Println("Closing connection to TCP server")
-	consumer.Close()
-	processor.Close()
+	err := consumer.Close()
+	if err != nil {
+		log.Println("Error closing connection to RabbitMQ server", err)
+	}
+	time.Sleep(3 * time.Second)
+	err = processor.Close()
+	if err != nil {
+		log.Println("Error closing connection to Redis server", err)
+	}
 	log.Println("Connection closed")
 }

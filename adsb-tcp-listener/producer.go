@@ -20,8 +20,8 @@ func NewProducer(address string, queue string) *Producer {
 	}
 }
 
-func (p *Producer) Close() {
-	p.connection.Close()
+func (p *Producer) Close() error {
+	error p.connection.Close()
 }
 
 func (p *Producer) connect() error {

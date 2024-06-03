@@ -72,7 +72,7 @@ func (p *Consumer) StartListening(workers int) error {
 
 	delivery, err := p.channel.Consume(p.queue, "adsb-ingestion-service", false, false, false, false, nil)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	for continueScheduling {
@@ -90,9 +90,29 @@ func (p *Consumer) StartListening(workers int) error {
 			err := json.Unmarshal(d.Body, &message)
 			if err != nil {
 				if d.Redelivered {
-					d.Nack(false, false)
+					err = d.Nack(false, false)
+					if err != nil {
+						failureCount++
+						if failureCount > 10 {
+							panic(err)
+						}
+
+						log.Println("failed to NACK message", err)
+					} else {
+						failureCount = 0
+					}
 				} else {
-					d.Nack(false, true)
+					err := d.Nack(false, true)
+					if err != nil {
+						failureCount++
+						if failureCount > 10 {
+							panic(err)
+						}
+
+						log.Println("failed to NACK message", err)
+					} else {
+						failureCount = 0
+					}
 				}
 			}
 
@@ -104,7 +124,7 @@ func (p *Consumer) StartListening(workers int) error {
 					panic(err)
 				}
 
-				log.Println("failed to read message", err)
+				log.Println("failed to ACK message", err)
 			} else {
 				failureCount = 0
 			}

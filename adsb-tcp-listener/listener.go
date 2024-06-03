@@ -28,10 +28,10 @@ func NewADSBClient(address string, port string) *ADSBClient {
 	}
 }
 
-func (client *ADSBClient) Close() {
+func (client *ADSBClient) Close() error {
 	client.closeChannel <- struct{}{}
 	time.Sleep(3 * time.Second)
-	client.Connection.Close()
+	return client.Connection.Close()
 }
 
 func (client *ADSBClient) Connect() error {
