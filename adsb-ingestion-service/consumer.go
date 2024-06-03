@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -25,8 +26,8 @@ func NewConsumer(address string, queue string) *Consumer {
 	}
 }
 
-func (p *Consumer) Close() {
-	p.connection.Close()
+func (p *Consumer) Close() error {
+	return p.connection.Close()
 }
 
 func (p *Consumer) Connect() error {
@@ -62,6 +63,7 @@ func (p *Consumer) StartListening(workers int) error {
 	waitGroup := sync.WaitGroup{}
 	workChannel := make(chan amqp.Delivery, workers)
 	continueScheduling := true
+	failureCount := 0
 
 	go func() {
 		<-p.closeChannel
@@ -95,7 +97,17 @@ func (p *Consumer) StartListening(workers int) error {
 			}
 
 			p.MessagesChannel <- message
-			d.Ack(false)
+			err = d.Ack(false)
+			if err != nil {
+				failureCount++
+				if failureCount > 10 {
+					panic(err)
+				}
+
+				log.Println("failed to read message", err)
+			} else {
+				failureCount = 0
+			}
 		}()
 	}
 
