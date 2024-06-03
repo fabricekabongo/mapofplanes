@@ -72,12 +72,18 @@ func main() {
 
 func prepareTermination(client *ADSBClient, producer *Producer) {
 	log.Println("Closing connection to TCP server")
-	client.Close()
+	err := client.Close()
+	if err != nil {
+		log.Println("failed to close connection to TCP server", err)
+	}
 
 	// make sure there are note messages waiting to be sent before closing the connection
 	log.Println("Waiting for messages to be sent...")
 	time.Sleep(3 * time.Second)
 	log.Println("Closing connection to RabbitMQ server")
-	producer.Close()
+	err = producer.Close()
+	if err != nil {
+		log.Println("failed to close connection to RabbitMQ server", err)
+	}
 	log.Println("Connection closed")
 }

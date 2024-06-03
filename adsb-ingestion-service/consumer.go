@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -25,8 +26,8 @@ func NewConsumer(address string, queue string) *Consumer {
 	}
 }
 
-func (p *Consumer) Close() {
-	p.connection.Close()
+func (p *Consumer) Close() error {
+	return p.connection.Close()
 }
 
 func (p *Consumer) Connect() error {
@@ -62,6 +63,7 @@ func (p *Consumer) StartListening(workers int) error {
 	waitGroup := sync.WaitGroup{}
 	workChannel := make(chan amqp.Delivery, workers)
 	continueScheduling := true
+	failureCount := 0
 
 	go func() {
 		<-p.closeChannel
@@ -70,7 +72,7 @@ func (p *Consumer) StartListening(workers int) error {
 
 	delivery, err := p.channel.Consume(p.queue, "adsb-ingestion-service", false, false, false, false, nil)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	for continueScheduling {
@@ -88,14 +90,44 @@ func (p *Consumer) StartListening(workers int) error {
 			err := json.Unmarshal(d.Body, &message)
 			if err != nil {
 				if d.Redelivered {
-					d.Nack(false, false)
+					err = d.Nack(false, false)
+					if err != nil {
+						failureCount++
+						if failureCount > 10 {
+							panic(err)
+						}
+
+						log.Println("failed to NACK message", err)
+					} else {
+						failureCount = 0
+					}
 				} else {
-					d.Nack(false, true)
+					err := d.Nack(false, true)
+					if err != nil {
+						failureCount++
+						if failureCount > 10 {
+							panic(err)
+						}
+
+						log.Println("failed to NACK message", err)
+					} else {
+						failureCount = 0
+					}
 				}
 			}
 
 			p.MessagesChannel <- message
-			d.Ack(false)
+			err = d.Ack(false)
+			if err != nil {
+				failureCount++
+				if failureCount > 10 {
+					panic(err)
+				}
+
+				log.Println("failed to ACK message", err)
+			} else {
+				failureCount = 0
+			}
 		}()
 	}
 

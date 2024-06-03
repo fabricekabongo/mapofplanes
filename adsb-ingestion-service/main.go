@@ -6,30 +6,19 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 var (
 	rabbitmqUrl   = os.Getenv("RABBITMQ_URL")
 	rabbitmqQueue = os.Getenv("RABBITMQ_QUEUE")
+	redisUrl      = os.Getenv("REDIS_URL")
 )
 
 func main() {
 	// check if all environment variables are set
-	if rabbitmqUrl == "" || rabbitmqQueue == "" {
-		log.Println("Please set the following environment variables:")
-		log.Println("RABBITMQ_URL, RABBITMQ_QUEUE")
-		log.Println("Reverting to flags...")
-		// get the missing environment variables from flags
-		flag.StringVar(&rabbitmqUrl, "rabbitmq-url", "", "RabbitMQ URL")
-		flag.StringVar(&rabbitmqQueue, "rabbitmq-queue", "", "RabbitMQ Queue")
-		flag.Parse()
-
-		if rabbitmqUrl == "" || rabbitmqQueue == "" {
-			log.Println("No flags set. Please set the following flags:")
-			log.Println("rabbitmq-url, rabbitmq-queue")
-			os.Exit(1)
-		}
-	}
+	// get the missing environment variables from flags
+	populateEnv()
 
 	consumer := NewConsumer(rabbitmqUrl, rabbitmqQueue)
 
@@ -37,20 +26,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer prepareTermination(consumer)
+	processor := NewSBS1Processor(redisUrl, consumer.MessagesChannel)
+	err = processor.Connect()
+	if err != nil {
+		panic(err)
+	}
+
+	defer prepareTermination(consumer, processor)
 
 	log.Println("Connected to RabbitMQ server")
 	log.Println("Starting to listen for messages")
 	go consumer.StartListening(10)
 
 	log.Println("Starting to process messages")
-
-	go func() {
-		for {
-			message := <-consumer.MessagesChannel
-			log.Println("Received message", message)
-		}
-	}()
+	go processor.Start()
 
 	// listen for sigterm
 	c := make(chan os.Signal, 1)
@@ -59,8 +48,35 @@ func main() {
 	log.Println("Shutting down...")
 }
 
-func prepareTermination(consumer *Consumer) {
+func populateEnv() {
+	if rabbitmqUrl == "" || rabbitmqQueue == "" || redisUrl == "" {
+		log.Println("Please set the following environment variables:")
+		log.Println("RABBITMQ_URL, RABBITMQ_QUEUE, REDIS_URL")
+		log.Println("Reverting to flags...")
+
+		flag.StringVar(&rabbitmqUrl, "rabbitmq-url", "", "RabbitMQ URL")
+		flag.StringVar(&rabbitmqQueue, "rabbitmq-queue", "", "RabbitMQ Queue")
+		flag.StringVar(&redisUrl, "redis-url", "", "Redis URL")
+		flag.Parse()
+
+		if rabbitmqUrl == "" || rabbitmqQueue == "" || redisUrl == "" {
+			log.Println("No flags set. Please set the following flags:")
+			log.Println("rabbitmq-url, rabbitmq-queue, redis-url")
+			os.Exit(1)
+		}
+	}
+}
+
+func prepareTermination(consumer *Consumer, processor *SBS1Processor) {
 	log.Println("Closing connection to TCP server")
-	consumer.Close()
+	err := consumer.Close()
+	if err != nil {
+		log.Println("Error closing connection to RabbitMQ server", err)
+	}
+	time.Sleep(3 * time.Second)
+	err = processor.Close()
+	if err != nil {
+		log.Println("Error closing connection to Redis server", err)
+	}
 	log.Println("Connection closed")
 }

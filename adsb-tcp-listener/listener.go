@@ -28,10 +28,10 @@ func NewADSBClient(address string, port string) *ADSBClient {
 	}
 }
 
-func (client *ADSBClient) Close() {
+func (client *ADSBClient) Close() error {
 	client.closeChannel <- struct{}{}
 	time.Sleep(3 * time.Second)
-	client.Connection.Close()
+	return client.Connection.Close()
 }
 
 func (client *ADSBClient) Connect() error {
@@ -106,12 +106,12 @@ func (client *ADSBClient) parseMessage(message string) (ADSBMessage, error) {
 		return ADSBMessage{}, err
 	}
 
-	altitude, _ := strconv.Atoi(messageParts[11])
-	groundSpeed, _ := strconv.Atoi(messageParts[12])
+	altitude, _ := strconv.ParseFloat(messageParts[11], 64)
+	groundSpeed, _ := strconv.ParseFloat(messageParts[12], 64)
 	track, _ := strconv.Atoi(messageParts[13])
-	latitude, _ := strconv.Atoi(messageParts[14])
-	longitude, _ := strconv.Atoi(messageParts[15])
-	verticalRate, _ := strconv.Atoi(messageParts[16])
+	latitude, _ := strconv.ParseFloat(messageParts[14], 64)
+	longitude, _ := strconv.ParseFloat(messageParts[15], 64)
+	verticalRate, _ := strconv.ParseFloat(messageParts[16], 64)
 
 	alert, _ := strconv.ParseBool(messageParts[18])
 	emergency, _ := strconv.ParseBool(messageParts[19])
