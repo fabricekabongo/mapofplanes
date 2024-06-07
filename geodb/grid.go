@@ -1,145 +1,126 @@
 package main
 
 import (
-	"github.com/uber/h3-go"
-	"log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-const (
-	LocationChangeTypeAdd    = "add"
-	LocationChangeTypeDelete = "delete"
-	LocationChangeTypeUpdate = "update"
-	ListenGridUpdate         = "listen"
+var (
+	metricGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "geo_db_grid_locations_total",
+		Help: "The total number of locations in the grid",
+	}, []string{"grid_name"})
+	opsProcessed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "geo_db_grid_processed_ops_total",
+		Help: "The total number of processed operations by the grid",
+	})
 )
 
-type LocationEntity struct {
-	LocationId string  `json:"locationId"`
-	Latitude   float64 `json:"latitude"`
-	Longitude  float64 `json:"longitude"`
+type LocationUpdateEvent struct {
+	LocId   string  `json:"loc_id"`
+	Lat     float64 `json:"lat"`
+	Lon     float64 `json:"lon"`
+	PrevLat float64 `json:"prev_lat"`
+	PrevLon float64 `json:"prev_lon"`
 }
 
-type LocationChangeEvent struct {
-	Location   LocationEntity
-	ChangeType string
+type LocationAddedEvent struct {
+	LocId string  `json:"loc_id"`
+	Lat   float64 `json:"lat"`
+	Lon   float64 `json:"lon"`
+}
+
+type LocationDeletedEvent struct {
+	LocId string `json:"loc_id"`
 }
 
 type Grid struct {
-	name        string
-	Locations   map[string]*LocationEntity
-	Subscribers map[string]chan LocationChangeEvent
+	Name                   string
+	locations              map[string]*LocationEntity
+	addEventSubscribers    map[string]chan LocationAddedEvent
+	updateEventSubscribers map[string]chan LocationUpdateEvent
+	deleteEventSubscribers map[string]chan LocationDeletedEvent
+	gauge                  prometheus.Gauge
 }
 
-func (g *Grid) DeleteLocation(locationId string) {
-	delete(g.Locations, locationId)
-	g.updateSubscribers(LocationEntity{LocationId: locationId}, LocationChangeTypeDelete)
-}
+func NewGrid(name string) *Grid {
 
-func (g *Grid) UpdateLocation(location *LocationEntity) {
-	g.Locations[location.LocationId] = location
-	g.updateSubscribers(*location, LocationChangeTypeUpdate)
-}
-
-func (g *Grid) updateSubscribers(location LocationEntity, changeType string) {
-	update := LocationChangeEvent{
-		Location:   location,
-		ChangeType: changeType,
-	}
-
-	for _, subscriber := range g.Subscribers {
-		subscriber <- update
+	return &Grid{
+		Name:                   name,
+		locations:              make(map[string]*LocationEntity),
+		addEventSubscribers:    make(map[string]chan LocationAddedEvent),
+		updateEventSubscribers: make(map[string]chan LocationUpdateEvent),
+		deleteEventSubscribers: make(map[string]chan LocationDeletedEvent),
+		gauge:                  metricGauge.WithLabelValues(name),
 	}
 }
 
-func (g *Grid) AddLocation(location *LocationEntity) {
-	oldLocation, ok := g.Locations[location.LocationId]
+func (g *Grid) DeleteLocation(loc *LocationEntity) {
+	defer g.gauge.Dec()
+	defer opsProcessed.Inc()
+
+	if len(loc.LocId) == 0 {
+		panic("locationId is required. It should have never reached the grid")
+	}
+	_, ok := g.locations[loc.LocId]
+
 	if !ok {
-		g.Locations[location.LocationId] = location
-		g.updateSubscribers(*location, LocationChangeTypeAdd)
 		return
 	}
 
-	if oldLocation.Latitude != location.Latitude || oldLocation.Longitude != location.Longitude {
-		g.Locations[location.LocationId] = location
-		g.updateSubscribers(*location, LocationChangeTypeUpdate)
-	}
-}
+	delete(g.locations, loc.LocId)
 
-func (g *Grid) Subscribe(subscriberId string, subscriber chan LocationChangeEvent) {
-	g.Subscribers[subscriberId] = subscriber
-}
-
-func (g *Grid) Unsubscribe(subscriberId string) {
-	delete(g.Subscribers, subscriberId)
-}
-
-type Map struct {
-	Locations map[string]*LocationEntity
-	Grids     map[string]*Grid
-}
-
-// { "Command":"add", "LocationEntity":{"LocationId": "the-boss", "Latitude":"25.6", Longitude:"52.0"}}
-func NewMap() *Map {
-	return &Map{
-		Locations: make(map[string]*LocationEntity),
-		Grids:     make(map[string]*Grid),
-	}
-}
-
-func (m *Map) Subscribe(gridName string, subscriber chan LocationChangeEvent) {
-	grid, ok := m.Grids[gridName]
-	if !ok {
-		log.Println("Grid not found: ", gridName)
-		return
-	}
-
-	grid.Subscribe(gridName, subscriber)
-}
-
-func (m *Map) AddLocation(location *LocationEntity) {
-	oldLocation, ok := m.Locations[location.LocationId]
-	if !ok {
-		m.Locations[location.LocationId] = location
-		grid := m.getGrip(location.Latitude, location.Longitude)
-		grid.AddLocation(location)
-		return
-	}
-
-	if oldLocation.Latitude != location.Latitude || oldLocation.Longitude != location.Longitude {
-		oldGrid := m.getGrip(oldLocation.Latitude, oldLocation.Longitude)
-		grid := m.getGrip(location.Latitude, location.Longitude)
-
-		if oldGrid != grid {
-			oldGrid.DeleteLocation(location.LocationId)
-			grid.AddLocation(location)
-			log.Println("Added location: ", location, " to grid: ", grid.name)
-		} else {
-			grid.UpdateLocation(location)
-			log.Println("Updated location: ", location, " in grid: ", grid.name)
+	go func() {
+		for _, subscriber := range g.deleteEventSubscribers {
+			subscriber <- LocationDeletedEvent{LocId: loc.LocId}
 		}
-	}
 
+	}()
 }
 
-//86283082fffffff
+func (g *Grid) UpdateLocation(loc *LocationEntity, lat float64, lon float64) error {
+	defer opsProcessed.Inc()
 
-func (m *Map) getGrip(lat float64, lon float64) *Grid {
-	geo := h3.GeoCoord{
-		Latitude:  lat,
-		Longitude: lon,
-	}
-
-	geoHash := h3.FromGeo(geo, 6)
-	geoHashString := h3.ToString(geoHash)
-
-	grid, ok := m.Grids[geoHashString]
+	_, ok := g.locations[loc.LocId]
 	if !ok {
-		grid = &Grid{
-			name:        geoHashString,
-			Locations:   make(map[string]*LocationEntity),
-			Subscribers: make(map[string]chan LocationChangeEvent),
+		panic("Location is not in the grid. Update should have never reached the grid")
+	}
+	prevLat := g.locations[loc.LocId].Lat
+	prevLon := g.locations[loc.LocId].Lon
+
+	g.locations[loc.LocId].Lat = lat
+	g.locations[loc.LocId].Lon = lon
+
+	go func() {
+		for _, subscriber := range g.updateEventSubscribers {
+			subscriber <- LocationUpdateEvent{
+				LocId:   loc.LocId,
+				Lat:     lat,
+				Lon:     lon,
+				PrevLat: prevLat,
+				PrevLon: prevLon,
+			}
 		}
-		m.Grids[geoHashString] = grid
+	}()
+
+	return nil
+}
+
+func (g *Grid) AddLocation(loc *LocationEntity) {
+	defer opsProcessed.Inc()
+	defer g.gauge.Inc()
+	_, ok := g.locations[loc.LocId]
+	if ok {
+		panic("Location already exists in the grid. Add should have never reached the grid")
 	}
 
-	return grid
+	go func() {
+		for _, subscriber := range g.addEventSubscribers {
+			subscriber <- LocationAddedEvent{
+				LocId: loc.LocId,
+				Lat:   loc.Lat,
+				Lon:   loc.Lon,
+			}
+		}
+	}()
 }

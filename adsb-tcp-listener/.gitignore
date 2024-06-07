@@ -1,0 +1,4 @@
+/.idea
+*.exe
+adsb-tcp-listener
+adsb-tcp-listener.exe

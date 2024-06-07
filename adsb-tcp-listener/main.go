@@ -24,8 +24,8 @@ func main() {
 		log.Println("Reverting to flags")
 		flag.StringVar(&adsbHost, "adsb-host", "localhost", "ADSB host")
 		flag.StringVar(&adsbPort, "adsb-port", "30003", "ADSB port")
-		flag.StringVar(&rabbitmqUrl, "rabbitmq-url", "amqp://guest:guest@localhost:5672/", "RabbitMQ URL")
-		flag.StringVar(&rabbitmqQueue, "rabbitmq-queue", "adsb", "RabbitMQ queue")
+		flag.StringVar(&rabbitmqUrl, "rabbitmq-url", "amqp://user:userpassword@localhost:5672/", "RabbitMQ URL")
+		flag.StringVar(&rabbitmqQueue, "rabbitmq-queue", "sbs1", "RabbitMQ queue")
 		flag.Parse()
 
 		if adsbHost == "" || adsbPort == "" || rabbitmqUrl == "" || rabbitmqQueue == "" {
