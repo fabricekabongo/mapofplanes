@@ -164,12 +164,21 @@ func (n *Node) Close() error {
 }
 
 func (n *Node) Send(data []byte) error {
-	_, err := n.Writer.Write(data)
+	written, err := n.Writer.Write(data)
 	if err != nil {
 		return err
 	}
 
-	return n.Writer.Flush()
+	if written != len(data) {
+		return fmt.Errorf("short write: wrote %d of %d bytes", written, len(data))
+	}
+
+	err = n.Writer.Flush()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (n *Node) StartListening() {
