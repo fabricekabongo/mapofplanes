@@ -166,7 +166,7 @@ func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
 
 func (p *SBS1Processor) handleIdentityMessage(message ADSBMessage) error {
 	if message.TransmissionType != TransmissionTypeIdentityAndCategory {
-		return errors.New("invalid transmission type")
+		return nil
 	}
 
 	p.redis.JSONSet(p.ctx, message.HexIdent, ".callsign", message.CallSign)
