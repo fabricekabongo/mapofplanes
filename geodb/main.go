@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/gob"
+	"errors"
 	"fabricekabongo.com/geodb/clustering"
 	server2 "fabricekabongo.com/geodb/server"
 	"fabricekabongo.com/geodb/world"
@@ -16,7 +17,10 @@ import (
 )
 
 var (
-	clusterDNS = os.Getenv("CLUSTER_DNS")
+	clusterDNS                = os.Getenv("CLUSTER_DNS")
+	FailedToJoinCluster       = errors.New("failed to join cluster")
+	FailedToCreateCluster     = errors.New("failed to create cluster")
+	FailedToExtractIPsFromDNS = errors.New("failed to extract IPs from DNS")
 )
 
 func main() {
@@ -40,14 +44,16 @@ func main() {
 	worldMap := world.NewMap()
 
 	mList, broadcasts, err := createClustering(clusterDNS, worldMap)
-	if err != nil {
-		time.wait(20 * time.Second)
-		mList, broadcasts, err = createClustering(clusterDNS, worldMap)
-		if err != nil {
-			log.Fatal("Failed to create cluster: ", err)
-		}
+	if errors.Is(err, FailedToCreateCluster) {
+		log.Fatal("Failed to create cluster: ", err)
 	}
 
+	if errors.Is(err, FailedToJoinCluster) {
+		log.Println("Failed to join cluster: ", err)
+	}
+	if errors.Is(err, FailedToExtractIPsFromDNS) {
+		log.Println("Failed to extract IPs from DNS: ", err)
+	}
 	defer func(mList *memberlist.Memberlist, timeout time.Duration) {
 		err := mList.Leave(timeout)
 		if err != nil {
@@ -91,7 +97,7 @@ func createClustering(clusterDNS string, world *world.Map) (*memberlist.Memberli
 	mList, err := memberlist.Create(config)
 	if err != nil {
 		log.Println("Failed to create cluster: ", err)
-		return nil, nil, err
+		return nil, nil, FailedToCreateCluster
 	}
 
 	broadcasts.NumNodes = func() int {
@@ -101,13 +107,13 @@ func createClustering(clusterDNS string, world *world.Map) (*memberlist.Memberli
 	clusterIPs, err := getClusterIPs(clusterDNS)
 	if err != nil {
 		log.Println("Failed to get cluster IPs: ", err)
-		return nil, nil, err
+		return nil, nil, FailedToExtractIPsFromDNS
 	}
 
 	_, err = mList.Join(clusterIPs)
 	if err != nil {
 		log.Println("Failed to join cluster: ", err)
-		return nil, nil, err
+		return mList, broadcasts, FailedToJoinCluster
 	}
 
 	return mList, broadcasts, nil
