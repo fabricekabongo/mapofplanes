@@ -12,22 +12,23 @@ var (
 )
 
 type LocationEntity struct {
-	LocId string       `json:"loc_id"`
-	Lat   float64      `json:"lat"`
-	Lon   float64      `json:"lon"`
-	Mu    sync.RWMutex // to protect the location
+	LocId string  `json:"loc_id"`
+	Lat   float64 `json:"lat"`
+	Lon   float64 `json:"lon"`
 }
 
 type Map struct {
 	Locations map[string]*LocationEntity `json:"locations"`
 	Grids     map[string]*Grid           `json:"grids"`
+	Mu        sync.RWMutex               // to protect the location
 }
 
 func NewMap() *Map {
 
 	return &Map{
 		Locations: make(map[string]*LocationEntity),
-		Grids:     make(map[string]*Grid, 14117883), // because of h3 index 6 can reach
+		Grids:     make(map[string]*Grid, 288130),
+		Mu:        sync.RWMutex{}, // because of h3 index 6 can reach
 	}
 }
 
