@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"net"
 	"time"
@@ -13,17 +14,20 @@ import (
 type SBS1Processor struct {
 	geoDB        net.Conn
 	geoDBUrl     string
+	redis        redis.Client
+	redisUrl     string
 	msgChannel   chan ADSBMessage
 	ctx          context.Context
 	processing   bool
 	closeChannel chan struct{}
 }
 
-func NewSBS1Processor(geoDBUrl string, msgChannel chan ADSBMessage) *SBS1Processor {
+func NewSBS1Processor(geoDBUrl string, redisUrl string, msgChannel chan ADSBMessage) *SBS1Processor {
 	var ctx = context.Background()
 
 	return &SBS1Processor{
 		geoDBUrl:   geoDBUrl,
+		redisUrl:   redisUrl,
 		msgChannel: msgChannel,
 		ctx:        ctx,
 		processing: false,
@@ -37,13 +41,33 @@ func (p *SBS1Processor) Connect() error {
 	}
 	p.geoDB = geoDB
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: p.redisUrl,
+	})
+
+	_, err = redisClient.Ping(p.ctx).Result()
+	if err != nil {
+		return err
+	}
+
+	p.redis = *redisClient
+
 	return nil
 }
 
 func (client *SBS1Processor) Close() error {
 	client.closeChannel <- struct{}{}
 	time.Sleep(3 * time.Second)
-	return client.geoDB.Close()
+	err := client.geoDB.Close()
+	if err != nil {
+		log.Println("failed to close connection to TCP server", err)
+	}
+	err = client.redis.Close()
+	if err != nil {
+		log.Println("failed to close connection to Redis server", err)
+	}
+
+	return err
 }
 
 func (p *SBS1Processor) Start() {
@@ -56,24 +80,24 @@ func (p *SBS1Processor) Start() {
 
 	for p.processing {
 		message := <-p.msgChannel
-		p.handleLocationMessage(message)
-		//storedMessage, err := p.geoDB.JSONGet(p.ctx, message.HexIdent, "$").Result()
-		//if err != nil {
-		//	continue
-		//}
-		//
-		//if storedMessage == "" {
-		//	p.geoDB.JSONSet(p.ctx, message.HexIdent, "$", message)
-		//	continue
-		//} else {
-		//	log.Println("Message found in Redis. Updating:")
-		//	p.geoDB.JSONSet(p.ctx, message.HexIdent, ".generatedDate", message.DateMessageGenerated)
-		//	p.geoDB.JSONSet(p.ctx, message.HexIdent, ".generatedTime", message.TimeMessageGenerated)
-		//	p.handleLocationMessage(message)
-		//	p.handleIdentityMessage(message)
-		//	p.handleVelocityMessage(message)
-		//	p.handleAltitudeMessage(message)
-		//}
+		storedMessage, err := p.redis.JSONGet(p.ctx, message.HexIdent, "$").Result()
+		if err != nil {
+			continue
+		}
+
+		if storedMessage == "" {
+			p.redis.JSONSet(p.ctx, message.HexIdent, "$", message)
+			continue
+		} else {
+			log.Println("Message found in Redis. Updating:")
+			p.redis.JSONSet(p.ctx, message.HexIdent, ".generatedDate", message.DateMessageGenerated)
+			p.redis.JSONSet(p.ctx, message.HexIdent, ".generatedTime", message.TimeMessageGenerated)
+
+			_ = p.handleLocationMessage(message)
+			_ = p.handleIdentityMessage(message)
+			_ = p.handleVelocityMessage(message)
+			_ = p.handleAltitudeMessage(message)
+		}
 	}
 }
 
@@ -99,34 +123,34 @@ func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
 	return nil
 }
 
-//func (p *SBS1Processor) handleIdentityMessage(message ADSBMessage) error {
-//	if message.TransmissionType != TransmissionTypeIdentityAndCategory {
-//		return errors.New("invalid transmission type")
-//	}
-//
-//	p.geoDB.JSONSet(p.ctx, message.HexIdent, ".callsign", message.CallSign)
-//
-//	return nil
-//}
+func (p *SBS1Processor) handleIdentityMessage(message ADSBMessage) error {
+	if message.TransmissionType != TransmissionTypeIdentityAndCategory {
+		return errors.New("invalid transmission type")
+	}
 
-//func (p *SBS1Processor) handleVelocityMessage(message ADSBMessage) error {
-//	if message.TransmissionType != TranmissionTypeAirborneVelocity {
-//		return errors.New("invalid transmission type")
-//	}
-//
-//	p.geoDB.JSONSet(p.ctx, message.HexIdent, ".groundSpeed", message.GroundSpeed)
-//	p.geoDB.JSONSet(p.ctx, message.HexIdent, ".track", message.Track)
-//	p.geoDB.JSONSet(p.ctx, message.HexIdent, ".verticalRate", message.VerticalRate)
-//
-//	return nil
-//}
+	p.redis.JSONSet(p.ctx, message.HexIdent, ".callsign", message.CallSign)
 
-//func (p *SBS1Processor) handleAltitudeMessage(message ADSBMessage) error {
-//	if message.TransmissionType != TranmissionTypeSurveillanceAltitude {
-//		return errors.New("invalid transmission type")
-//	}
-//
-//	p.geoDB.JSONSet(p.ctx, message.HexIdent, ".altitude", message.Altitude)
-//
-//	return nil
-//}
+	return nil
+}
+
+func (p *SBS1Processor) handleVelocityMessage(message ADSBMessage) error {
+	if message.TransmissionType != TranmissionTypeAirborneVelocity {
+		return errors.New("invalid transmission type")
+	}
+
+	p.redis.JSONSet(p.ctx, message.HexIdent, ".groundSpeed", message.GroundSpeed)
+	p.redis.JSONSet(p.ctx, message.HexIdent, ".track", message.Track)
+	p.redis.JSONSet(p.ctx, message.HexIdent, ".verticalRate", message.VerticalRate)
+
+	return nil
+}
+
+func (p *SBS1Processor) handleAltitudeMessage(message ADSBMessage) error {
+	if message.TransmissionType != TranmissionTypeSurveillanceAltitude {
+		return errors.New("invalid transmission type")
+	}
+
+	p.redis.JSONSet(p.ctx, message.HexIdent, ".altitude", message.Altitude)
+
+	return nil
+}
