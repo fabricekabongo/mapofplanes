@@ -123,7 +123,7 @@ jobs:
           context: ./geodb  # Assumes Dockerfile is in the root, change if needed
           file: background-process.dockerfile  # Path to your Dockerfile
           push: true
-          tags: fabricekabongo/adsb-ingestion-service:${{ github.sha }}
+          tags: fabricekabongo/geodb:${{ github.sha }}
 
       - name: Clone home-cluster repository
         uses: actions/checkout@v2
