@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/uber/h3-go"
 	"log"
+	"sync"
 )
 
 var (
@@ -11,9 +12,10 @@ var (
 )
 
 type LocationEntity struct {
-	LocId string  `json:"loc_id"`
-	Lat   float64 `json:"lat"`
-	Lon   float64 `json:"lon"`
+	LocId string       `json:"loc_id"`
+	Lat   float64      `json:"lat"`
+	Lon   float64      `json:"lon"`
+	Mu    sync.RWMutex // to protect the location
 }
 
 type Map struct {
@@ -30,6 +32,9 @@ func NewMap() *Map {
 }
 
 func (m *Map) Save(locId string, lat float64, lon float64) error {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+
 	if len(locId) == 0 {
 		return ErrLocIdRequired
 	}

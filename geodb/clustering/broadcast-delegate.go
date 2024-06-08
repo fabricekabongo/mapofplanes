@@ -53,6 +53,9 @@ func (d *BroadcastDelegate) GetBroadcasts(overhead, limit int) [][]byte {
 }
 
 func (d *BroadcastDelegate) LocalState(join bool) []byte {
+	d.state.World.Mu.RLock()
+	defer d.state.World.Mu.RUnlock()
+
 	if join {
 		log.Println("Sharing local state to a new node")
 	} else {
