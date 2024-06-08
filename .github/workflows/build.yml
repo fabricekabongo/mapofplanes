@@ -37,7 +37,7 @@ jobs:
       
       - name: Update Kubernetes deployment with new image tag
         run: |
-          cd home-cluster/${{ secrets.HOME_CLUSTER_PATH }}
+          cd home-cluster/mapofplanes
           for file in *; do
             if [[ -f "$file" ]]; then  # Check if it's a file
               sed -i 's|image: fabricekabongo/adsb-tcp-listener:.*|image: fabricekabongo/adsb-tcp-listener:${{ github.sha }}|g' "$file"
@@ -85,7 +85,7 @@ jobs:
       
       - name: Update Kubernetes deployment with new image tag
         run: |
-          cd home-cluster/${{ secrets.HOME_CLUSTER_PATH }}
+          cd home-cluster/mapofplanes
           for file in *; do
             if [[ -f "$file" ]]; then  # Check if it's a file
               sed -i 's|image: fabricekabongo/adsb-ingestion-service:.*|image: fabricekabongo/adsb-ingestion-service:${{ github.sha }}|g' "$file"
@@ -135,7 +135,7 @@ jobs:
 
       - name: Update Kubernetes deployment with new image tag
         run: |
-          cd home-cluster/${{ secrets.HOME_CLUSTER_PATH }}
+          cd home-cluster/mapofplanes
           for file in *; do
             if [[ -f "$file" ]]; then  # Check if it's a file
               sed -i 's|image: fabricekabongo/geodb:.*|image: fabricekabongo/geodb:${{ github.sha }}|g' "$file"
