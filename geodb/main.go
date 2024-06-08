@@ -41,7 +41,11 @@ func main() {
 
 	mList, broadcasts, err := createClustering(clusterDNS, worldMap)
 	if err != nil {
-		log.Fatal("Failed to create cluster: ", err)
+		time.wait(20 * time.Second)
+		mList, broadcasts, err = createClustering(clusterDNS, worldMap)
+		if err != nil {
+			log.Fatal("Failed to create cluster: ", err)
+		}
 	}
 
 	defer func(mList *memberlist.Memberlist, timeout time.Duration) {
@@ -114,10 +118,16 @@ func getClusterIPs(clusterDNS string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	currentIp, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
 	// map addresses to strings
 	var clusterIPs []string
 	for _, ip := range ips {
+		if ip.String() == currentIp {
+			continue
+		}
 		clusterIPs = append(clusterIPs, ip.String())
 	}
 
