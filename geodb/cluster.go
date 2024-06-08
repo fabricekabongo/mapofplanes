@@ -123,7 +123,7 @@ func (c *Cluster) BroadcastMessage(data []byte) {
 	for _, node := range c.Nodes {
 		err := node.Send(data)
 		if err != nil {
-			fmt.Println("Error sending message to node: ", node.Address())
+			fmt.Println("Error sending message to node: ", node.Address(), err)
 			c.RemoveNode(node.Host) // Remove node from cluster if it fails to send message it will be added back in the next iteration
 		}
 	}
