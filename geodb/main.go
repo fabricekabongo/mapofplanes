@@ -5,13 +5,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
+	"os"
 )
 
 var (
-	isSimulationFromFlags = flag.Bool("simulation", false, "Run the simulation")
+	clusterDNS = os.Getenv("CLUSTER_DNS")
 )
 
 func main() {
+
+	populateEnv()
 	log.Println("Starting metrics server on port 80 /metrics")
 
 	go func() {
@@ -21,8 +24,27 @@ func main() {
 
 	flag.Parse()
 
+	clusters := NewCluster(clusterDNS)
+
 	worldMap := NewMap()
-	server := NewServer(worldMap)
+	server := NewServer(worldMap, *clusters)
 
 	server.Start()
+}
+
+func populateEnv() {
+	if clusterDNS == "" {
+		log.Println("Please set the following environment variables:")
+		log.Println("CLUSTER_DNS")
+		log.Println("Reverting to flags...")
+
+		flag.StringVar(&clusterDNS, "cluster-dns", "", "Cluster DNS")
+		flag.Parse()
+
+		if clusterDNS == "" {
+			log.Println("No flags set. Please set the following flags:")
+			log.Println("cluster-dns")
+			os.Exit(1)
+		}
+	}
 }

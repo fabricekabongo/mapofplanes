@@ -8,11 +8,13 @@ import (
 type Server struct {
 	WorldMap     *Map
 	closeChannel chan struct{}
+	Cluster      *Cluster
 }
 
-func NewServer(world *Map) *Server {
+func NewServer(world *Map, cluster Cluster) *Server {
 	return &Server{
 		WorldMap:     world,
+		Cluster:      &cluster,
 		closeChannel: make(chan struct{}),
 	}
 }
@@ -35,7 +37,7 @@ func (s *Server) Start() {
 		panic(err)
 	}
 
-	WriteHandler := NewWriteHandler(s.WorldMap)
+	WriteHandler := NewWriteHandler(s.WorldMap, s.Cluster)
 	ReadHandler := NewReadHandler(s.WorldMap)
 
 	go WriteHandler.listen(writerListener, s.WorldMap)

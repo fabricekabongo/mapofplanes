@@ -16,12 +16,14 @@ type WriteCommand struct {
 
 type WriteHandler struct {
 	WorldMap  *Map
+	Cluster   *Cluster
 	closeChan chan struct{}
 }
 
-func NewWriteHandler(world *Map) *WriteHandler {
+func NewWriteHandler(world *Map, cluster *Cluster) *WriteHandler {
 	return &WriteHandler{
 		WorldMap:  world,
+		Cluster:   cluster,
 		closeChan: make(chan struct{}),
 	}
 }
@@ -49,12 +51,12 @@ func (w *WriteHandler) listen(listener net.Listener, worldMap *Map) {
 				panic(err)
 			}
 
-			go handleWriteConnection(conn, worldMap)
+			go w.handleWriteConnection(conn, worldMap)
 		}
 	}
 }
 
-func handleWriteConnection(conn net.Conn, worldMap *Map) {
+func (w *WriteHandler) handleWriteConnection(conn net.Conn, worldMap *Map) {
 	log.Println("New write connection from: ", conn.RemoteAddr())
 
 	defer func(conn net.Conn) {
@@ -66,17 +68,21 @@ func handleWriteConnection(conn net.Conn, worldMap *Map) {
 
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
+		line := scanner.Bytes()
+		if len(line) == 0 {
 			break
 		}
-		HandleWriterCommand(line, conn, worldMap)
+
+		w.handleWriterCommand(line, conn, worldMap)
 	}
 }
 
-func HandleWriterCommand(line string, conn net.Conn, worldMap *Map) {
+func (w *WriteHandler) handleWriterCommand(line []byte, conn net.Conn, worldMap *Map) {
+	go w.Cluster.BroadcastMessage(line)
+
 	var command WriteCommand
-	err := json.Unmarshal([]byte(line), &command)
+	err := json.Unmarshal(line, &command)
+
 	if err != nil {
 		log.Println("Error parsing command: ", err, line)
 		_, err := conn.Write([]byte("Error parsing command\n"))
