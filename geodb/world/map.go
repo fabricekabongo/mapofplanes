@@ -54,8 +54,8 @@ func (m *Map) Save(locId string, lat float64, lon float64) error {
 }
 
 func (m *Map) assignToGrid(lat float64, lon float64, currLoc *LocationEntity) {
-	currentGrid := m.getGrip(currLoc.Lat, currLoc.Lon)
-	newGrid := m.getGrip(lat, lon)
+	currentGrid := m.getGrid(currLoc.Lat, currLoc.Lon)
+	newGrid := m.getGrid(lat, lon)
 
 	if currentGrid.Name != newGrid.Name {
 		currentGrid.DeleteLocation(currLoc)
@@ -81,11 +81,11 @@ func (m *Map) createLocation(locId string, lat float64, lon float64) {
 
 	m.Locations[locId] = loc
 
-	grid := m.getGrip(lat, lon)
+	grid := m.getGrid(lat, lon)
 	grid.AddLocation(loc)
 }
 
-func (m *Map) getGrip(lat float64, lon float64) *Grid {
+func (m *Map) getGrid(lat float64, lon float64) *Grid {
 	geo := h3.GeoCoord{
 		Latitude:  lat,
 		Longitude: lon,
