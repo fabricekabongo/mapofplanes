@@ -28,7 +28,7 @@ func NewWriteHandler(world *Map, cluster *Cluster) *WriteHandler {
 	}
 }
 
-func (w *WriteHandler) listen(listener net.Listener, worldMap *Map) {
+func (w *WriteHandler) listen(listener net.Listener) {
 	defer func(listener net.Listener) {
 		err := listener.Close()
 		if err != nil {

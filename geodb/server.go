@@ -40,7 +40,7 @@ func (s *Server) Start() {
 	WriteHandler := NewWriteHandler(s.WorldMap, s.Cluster)
 	ReadHandler := NewReadHandler(s.WorldMap)
 
-	go WriteHandler.listen(writerListener, s.WorldMap)
+	go WriteHandler.listen(writerListener)
 	go ReadHandler.listen(subscriberListener, s.WorldMap)
 
 	<-s.closeChannel
