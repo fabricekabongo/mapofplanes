@@ -41,13 +41,13 @@ func (c *Cluster) AddNode(host string, port int, broadcast chan []byte) {
 		Broadcast: broadcast,
 	}
 
-	c.Nodes[host] = node
-
 	err := node.Connect()
 	if err != nil {
 		fmt.Println("Error connecting to node: ", node.Address())
 		return
 	}
+
+	c.Nodes[host] = node
 }
 
 func (c *Cluster) RemoveNode(host string) {
@@ -78,6 +78,7 @@ func (c *Cluster) Start() {
 		}
 
 		node := Node{
+			Host:   c.extractIP(conn.RemoteAddr()),
 			Conn:   conn,
 			Reader: bufio.NewReader(conn),
 			Writer: bufio.NewWriter(conn),
