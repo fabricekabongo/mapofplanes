@@ -1,28 +1,33 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
-	"log"
-	"time"
-
+	"fmt"
 	"github.com/redis/go-redis/v9"
+	"log"
+	"net"
+	"time"
 )
 
 type SBS1Processor struct {
-	redis        *redis.Client
-	redisURL     string
+	geoDB        net.Conn
+	geoDBUrl     string
+	redis        redis.Client
+	redisUrl     string
 	msgChannel   chan ADSBMessage
 	ctx          context.Context
 	processing   bool
 	closeChannel chan struct{}
 }
 
-func NewSBS1Processor(redisURL string, msgChannel chan ADSBMessage) *SBS1Processor {
+func NewSBS1Processor(geoDBUrl string, redisUrl string, msgChannel chan ADSBMessage) *SBS1Processor {
 	var ctx = context.Background()
 
 	return &SBS1Processor{
-		redisURL:   redisURL,
+		geoDBUrl:   geoDBUrl,
+		redisUrl:   redisUrl,
 		msgChannel: msgChannel,
 		ctx:        ctx,
 		processing: false,
@@ -30,13 +35,22 @@ func NewSBS1Processor(redisURL string, msgChannel chan ADSBMessage) *SBS1Process
 }
 
 func (p *SBS1Processor) Connect() error {
-	options, err := redis.ParseURL(p.redisURL)
+	geoDB, err := net.Dial("tcp", p.geoDBUrl)
+	if err != nil {
+		return err
+	}
+	p.geoDB = geoDB
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: p.redisUrl,
+	})
+
+	_, err = redisClient.Ping(p.ctx).Result()
 	if err != nil {
 		return err
 	}
 
-	redisClient := redis.NewClient(options)
-	p.redis = redisClient
+	p.redis = *redisClient
 
 	return nil
 }
@@ -44,7 +58,16 @@ func (p *SBS1Processor) Connect() error {
 func (client *SBS1Processor) Close() error {
 	client.closeChannel <- struct{}{}
 	time.Sleep(3 * time.Second)
-	return client.redis.Close()
+	err := client.geoDB.Close()
+	if err != nil {
+		log.Println("failed to close connection to TCP server", err)
+	}
+	err = client.redis.Close()
+	if err != nil {
+		log.Println("failed to close connection to Redis server", err)
+	}
+
+	return err
 }
 
 func (p *SBS1Processor) Start() {
@@ -57,7 +80,6 @@ func (p *SBS1Processor) Start() {
 
 	for p.processing {
 		message := <-p.msgChannel
-
 		storedMessage, err := p.redis.JSONGet(p.ctx, message.HexIdent, "$").Result()
 		if err != nil {
 			continue
@@ -70,15 +92,18 @@ func (p *SBS1Processor) Start() {
 			log.Println("Message found in Redis. Updating:")
 			p.redis.JSONSet(p.ctx, message.HexIdent, ".generatedDate", message.DateMessageGenerated)
 			p.redis.JSONSet(p.ctx, message.HexIdent, ".generatedTime", message.TimeMessageGenerated)
-			p.handleLocationMessage(message)
-			p.handleIdentityMessage(message)
-			p.handleVelocityMessage(message)
-			p.handleAltitudeMessage(message)
+
+			_ = p.handleLocationMessage(message)
+			_ = p.handleIdentityMessage(message)
+			_ = p.handleVelocityMessage(message)
+			_ = p.handleAltitudeMessage(message)
 		}
 	}
 }
 
 func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
+	writer := bufio.NewWriter(p.geoDB)
+
 	if message.TransmissionType != TranmissionTypeSurfacePosition && message.TransmissionType != TranmissionTypeAirbornePosition {
 		return errors.New("invalid transmission type")
 	}
@@ -87,15 +112,13 @@ func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
 		return errors.New("invalid location")
 	}
 
-	p.redis.JSONSet(p.ctx, message.HexIdent, ".lat", message.Latitude)
-	p.redis.JSONSet(p.ctx, message.HexIdent, ".lon", message.Longitude)
+	write, err := writer.Write([]byte(fmt.Sprintf("{\"loc_id\":\"%s\",\"lat\":%f,\"lon\":%f}\n", message.HexIdent, message.Latitude, message.Longitude)))
+	err = writer.Flush()
+	if err != nil {
+		panic(err)
+	}
 
-	// Add location to Redis geo set
-	p.redis.GeoAdd(p.ctx, "locations", &redis.GeoLocation{
-		Name:      message.HexIdent,
-		Latitude:  float64(message.Latitude),
-		Longitude: float64(message.Longitude),
-	})
+	log.Println("Wrote to GeoDB", write)
 
 	return nil
 }

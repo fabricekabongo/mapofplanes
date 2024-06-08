@@ -12,7 +12,8 @@ import (
 var (
 	rabbitmqUrl   = os.Getenv("RABBITMQ_URL")
 	rabbitmqQueue = os.Getenv("RABBITMQ_QUEUE")
-	redisUrl      = os.Getenv("REDIS_URL")
+	GeoDBUrl      = os.Getenv("GEODB_URL")
+	RedisUrl      = os.Getenv("REDIS_URL")
 )
 
 func main() {
@@ -26,7 +27,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	processor := NewSBS1Processor(redisUrl, consumer.MessagesChannel)
+	processor := NewSBS1Processor(GeoDBUrl, RedisUrl, consumer.MessagesChannel)
 	err = processor.Connect()
 	if err != nil {
 		panic(err)
@@ -49,19 +50,20 @@ func main() {
 }
 
 func populateEnv() {
-	if rabbitmqUrl == "" || rabbitmqQueue == "" || redisUrl == "" {
+	if rabbitmqUrl == "" || rabbitmqQueue == "" || GeoDBUrl == "" || RedisUrl == "" {
 		log.Println("Please set the following environment variables:")
-		log.Println("RABBITMQ_URL, RABBITMQ_QUEUE, REDIS_URL")
+		log.Println("RABBITMQ_URL, RABBITMQ_QUEUE, GEODB_URL, REDIS_URL")
 		log.Println("Reverting to flags...")
 
-		flag.StringVar(&rabbitmqUrl, "rabbitmq-url", "", "RabbitMQ URL")
-		flag.StringVar(&rabbitmqQueue, "rabbitmq-queue", "", "RabbitMQ Queue")
-		flag.StringVar(&redisUrl, "redis-url", "", "Redis URL")
+		flag.StringVar(&rabbitmqUrl, "rabbitmq-url", "amqp://user:userpassword@localhost:5672/", "RabbitMQ URL")
+		flag.StringVar(&rabbitmqQueue, "rabbitmq-queue", "sbs1", "RabbitMQ queue")
+		flag.StringVar(&GeoDBUrl, "geodb-url", "", "GEODB URL")
+		flag.StringVar(&RedisUrl, "redis-url", "", "Redis URL")
 		flag.Parse()
 
-		if rabbitmqUrl == "" || rabbitmqQueue == "" || redisUrl == "" {
+		if rabbitmqUrl == "" || rabbitmqQueue == "" || GeoDBUrl == "" || RedisUrl == "" {
 			log.Println("No flags set. Please set the following flags:")
-			log.Println("rabbitmq-url, rabbitmq-queue, redis-url")
+			log.Println("rabbitmq-url, rabbitmq-queue, geodb-url, redis-url")
 			os.Exit(1)
 		}
 	}
