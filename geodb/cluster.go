@@ -50,7 +50,7 @@ func (c *Cluster) AddNode(host string, port int, broadcast chan []byte) {
 	}
 }
 
-func (c *Cluster) RemoveNode(host string, port int) {
+func (c *Cluster) RemoveNode(host string) {
 	delete(c.Nodes, host)
 }
 
@@ -114,7 +114,7 @@ func (c *Cluster) BroadcastMessage(data []byte) {
 		err := node.Send(data)
 		if err != nil {
 			fmt.Println("Error sending message to node: ", node.Address())
-			c.RemoveNode(node.Host, node.Port) // Remove node from cluster if it fails to send message it will be added back in the next iteration
+			c.RemoveNode(node.Host) // Remove node from cluster if it fails to send message it will be added back in the next iteration
 		}
 	}
 }

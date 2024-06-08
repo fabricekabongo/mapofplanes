@@ -34,7 +34,6 @@ func (m *Map) Save(locId string, lat float64, lon float64) error {
 	}
 
 	currLoc, ok := m.Locations[locId]
-	log.Println("Location: ", currLoc)
 	if !ok {
 		m.createLocation(locId, lat, lon)
 		return nil
