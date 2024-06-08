@@ -41,9 +41,9 @@ func NewSBS1Processor(geoDBUrl string, redisUrl string, msgChannel chan ADSBMess
 }
 
 func (p *SBS1Processor) Connect() error {
-	err, err2 := p.connectToGeoDB()
-	if err2 != nil {
-		return err2
+	err := p.connectToGeoDB()
+	if err != nil {
+		return err
 	}
 
 	err = p.connectToRedis()
@@ -139,7 +139,7 @@ func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
 	writer := bufio.NewWriter(p.geoDB)
 
 	if message.TransmissionType != TranmissionTypeSurfacePosition && message.TransmissionType != TranmissionTypeAirbornePosition {
-		return
+		return nil
 	}
 
 	if message.Latitude < -90 || message.Latitude > 90 || message.Longitude < -180 || message.Longitude > 180 {
