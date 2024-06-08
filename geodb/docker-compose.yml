@@ -1,0 +1,7 @@
+services:
+    geodb:
+        build:
+            context: .
+            dockerfile: ../background-process.dockerfile
+        environment:
+        - CLUSTER_DNS=geodb
