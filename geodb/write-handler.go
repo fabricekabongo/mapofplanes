@@ -35,6 +35,16 @@ func (w *WriteHandler) listen(listener net.Listener, worldMap *Map) {
 			log.Println("Error closing listener: ", err)
 		}
 	}(listener)
+
+	go w.Cluster.Start()
+	go func() {
+		for {
+			select {
+			case msg := <-w.Cluster.Broadcast:
+				w.handleWriterCommand(msg)
+			}
+		}
+	}()
 	waitGroup := sync.WaitGroup{}
 
 	defer waitGroup.Wait()
@@ -51,12 +61,12 @@ func (w *WriteHandler) listen(listener net.Listener, worldMap *Map) {
 				panic(err)
 			}
 
-			go w.handleWriteConnection(conn, worldMap)
+			go w.handleWriteConnection(conn)
 		}
 	}
 }
 
-func (w *WriteHandler) handleWriteConnection(conn net.Conn, worldMap *Map) {
+func (w *WriteHandler) handleWriteConnection(conn net.Conn) {
 	log.Println("New write connection from: ", conn.RemoteAddr())
 
 	defer func(conn net.Conn) {
@@ -73,11 +83,11 @@ func (w *WriteHandler) handleWriteConnection(conn net.Conn, worldMap *Map) {
 			break
 		}
 
-		w.handleWriterCommand(line, conn, worldMap)
+		w.handleWriterCommand(line)
 	}
 }
 
-func (w *WriteHandler) handleWriterCommand(line []byte, conn net.Conn, worldMap *Map) {
+func (w *WriteHandler) handleWriterCommand(line []byte) {
 	go w.Cluster.BroadcastMessage(line)
 
 	var command WriteCommand
@@ -85,15 +95,10 @@ func (w *WriteHandler) handleWriterCommand(line []byte, conn net.Conn, worldMap 
 
 	if err != nil {
 		log.Println("Error parsing command: ", err, line)
-		_, err := conn.Write([]byte("Error parsing command\n"))
-		if err != nil {
-			log.Println("Error writing to connection: ", err)
-			return
-		}
 		return
 	}
 
-	err = worldMap.Save(command.LodId, command.Lat, command.Lon)
+	err = w.WorldMap.Save(command.LodId, command.Lat, command.Lon)
 	if err != nil {
 		log.Println("Error saving location to map: ", err)
 		return
