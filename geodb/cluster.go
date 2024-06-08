@@ -51,7 +51,16 @@ func (c *Cluster) AddNode(host string, port int, broadcast chan []byte) {
 }
 
 func (c *Cluster) RemoveNode(host string) {
+	node, ok := c.Nodes[host]
+	if !ok {
+		return
+	}
+
 	delete(c.Nodes, host)
+	err := node.Close()
+	if err != nil {
+		return
+	}
 }
 
 func (c *Cluster) Start() {
