@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+var (
+	FailedToWriteToGeoDB       = errors.New("failed to write to GeoDB")
+	FailedToWriteToRedis       = errors.New("failed to write to Redis")
+	InvalidLocationCoordinates = errors.New("invalid location coordinates")
+)
+
 type SBS1Processor struct {
 	geoDB        net.Conn
 	geoDBUrl     string
@@ -35,17 +41,35 @@ func NewSBS1Processor(geoDBUrl string, redisUrl string, msgChannel chan ADSBMess
 }
 
 func (p *SBS1Processor) Connect() error {
+	err, err2 := p.connectToGeoDB()
+	if err2 != nil {
+		return err2
+	}
+
+	err = p.connectToRedis()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *SBS1Processor) connectToGeoDB() error {
 	geoDB, err := net.Dial("tcp", p.geoDBUrl)
 	if err != nil {
 		return err
 	}
 	p.geoDB = geoDB
 
+	return nil
+}
+
+func (p *SBS1Processor) connectToRedis() error {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: p.redisUrl,
 	})
 
-	_, err = redisClient.Ping(p.ctx).Result()
+	_, err := redisClient.Ping(p.ctx).Result()
 	if err != nil {
 		return err
 	}
@@ -93,7 +117,17 @@ func (p *SBS1Processor) Start() {
 			p.redis.JSONSet(p.ctx, message.HexIdent, ".generatedDate", message.DateMessageGenerated)
 			p.redis.JSONSet(p.ctx, message.HexIdent, ".generatedTime", message.TimeMessageGenerated)
 
-			_ = p.handleLocationMessage(message)
+			err = p.handleLocationMessage(message)
+			if err != nil {
+				log.Println("Failed to handle location message", err)
+				if errors.Is(err, FailedToWriteToGeoDB) {
+					time.Sleep(10 * time.Second)
+					err := p.connectToGeoDB()
+					if err != nil {
+						log.Fatalln("Failed to reconnect to GeoDB", err)
+					}
+				}
+			}
 			_ = p.handleIdentityMessage(message)
 			_ = p.handleVelocityMessage(message)
 			_ = p.handleAltitudeMessage(message)
@@ -105,17 +139,24 @@ func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
 	writer := bufio.NewWriter(p.geoDB)
 
 	if message.TransmissionType != TranmissionTypeSurfacePosition && message.TransmissionType != TranmissionTypeAirbornePosition {
-		return errors.New("invalid transmission type")
+		return
 	}
 
 	if message.Latitude < -90 || message.Latitude > 90 || message.Longitude < -180 || message.Longitude > 180 {
-		return errors.New("invalid location")
+		return InvalidLocationCoordinates
 	}
 
 	write, err := writer.Write([]byte(fmt.Sprintf("{\"loc_id\":\"%s\",\"lat\":%f,\"lon\":%f}\n", message.HexIdent, message.Latitude, message.Longitude)))
-	err = writer.Flush()
 	if err != nil {
-		panic(err)
+		log.Println("Failed to write to GeoDB", err)
+		return FailedToWriteToGeoDB
+	}
+
+	err = writer.Flush()
+
+	if err != nil {
+		log.Println("Failed to flush to GeoDB", err)
+		return FailedToWriteToGeoDB
 	}
 
 	log.Println("Wrote to GeoDB", write)
