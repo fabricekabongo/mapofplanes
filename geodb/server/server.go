@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log"
 	"net"
 )
 
@@ -25,14 +24,12 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) Start() {
-	log.Println("Starting database server on port 19999 for write and 20000 for read")
-
 	writerListener, err := net.Listen("tcp", ":19999")
 	if err != nil {
 		panic(err)
 	}
 
-	subscriberListener, err := net.Listen("tcp", ":20000")
+	subscriberListener, err := net.Listen("tcp", ":19998")
 	if err != nil {
 		panic(err)
 	}

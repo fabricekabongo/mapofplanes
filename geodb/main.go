@@ -8,6 +8,7 @@ import (
 	server2 "fabricekabongo.com/geodb/server"
 	"fabricekabongo.com/geodb/world"
 	"flag"
+	"fmt"
 	"github.com/hashicorp/memberlist"
 	"log"
 	"net"
@@ -25,7 +26,6 @@ var (
 func main() {
 
 	populateEnv()
-	log.Println("Starting metrics server on port 80 /metrics and 20001 for clustering")
 
 	flag.Parse()
 
@@ -54,7 +54,15 @@ func main() {
 		}
 	}(mList, 0)
 
-	// Start the metrics server
+	fmt.Println("===========================================================")
+	fmt.Println("Starting the Database Server")
+	fmt.Println("Cluster DNS: ", clusterDNS)
+	fmt.Println("Use the following ports for the following services:")
+	fmt.Println("Writing location update: 19999")
+	fmt.Println("Reading location update: 19998")
+	fmt.Println("Admin UI (/) & Metrics(/metrics): 20000")
+	fmt.Println("Clustering: 20001")
+	fmt.Println("===========================================================")
 	opsServer := ops.NewOpsServer(mList, worldMap)
 	go opsServer.Start()
 

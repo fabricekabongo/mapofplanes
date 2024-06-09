@@ -6,7 +6,13 @@ import (
 	"fabricekabongo.com/geodb/world"
 	"github.com/hashicorp/memberlist"
 	"log"
+	"runtime"
 )
+
+func init() {
+	gob.Register(NodeMetaData{})
+	gob.Register(world.Stats{})
+}
 
 type BroadcastDelegate struct {
 	state      *NodeState
@@ -15,6 +21,20 @@ type BroadcastDelegate struct {
 
 type NodeState struct {
 	World *world.Map
+}
+
+type NodeMetaData struct {
+	Locations  int
+	Grids      int
+	MemStats   MemStats
+	CPUs       int
+	GoRoutines int
+}
+
+type MemStats struct {
+	Alloc      uint64
+	TotalAlloc uint64
+	Sys        uint64
 }
 
 func NewBroadcastDelegate(world *world.Map, broadcasts *memberlist.TransmitLimitedQueue) *BroadcastDelegate {
@@ -27,7 +47,30 @@ func NewBroadcastDelegate(world *world.Map, broadcasts *memberlist.TransmitLimit
 }
 
 func (d *BroadcastDelegate) NodeMeta(limit int) []byte {
-	return []byte{} // Metadata information
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+	stats := d.state.World.Stats()
+	metaData := NodeMetaData{
+		Locations: stats.Locations,
+		Grids:     stats.Grids,
+		MemStats: MemStats{
+			Alloc:      (memStats.Alloc / 1024) / 1024,
+			TotalAlloc: (memStats.TotalAlloc / 1024) / 1024,
+			Sys:        (memStats.Sys / 1024) / 1024,
+		},
+		CPUs:       runtime.NumCPU(),
+		GoRoutines: runtime.NumGoroutine(),
+	}
+
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(metaData)
+	if err != nil {
+		return []byte{}
+	}
+
+	return buf.Bytes()
 }
 
 func (d *BroadcastDelegate) NotifyMsg(buf []byte) {

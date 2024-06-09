@@ -17,10 +17,16 @@ type LocationEntity struct {
 	Lon   float64 `json:"lon"`
 }
 
+type Stats struct {
+	Locations int
+	Grids     int
+}
+
 type Map struct {
 	Locations map[string]*LocationEntity `json:"locations"`
 	Grids     map[string]*Grid           `json:"grids"`
 	Mu        sync.RWMutex               // to protect the location
+	Stat      Stats
 }
 
 func NewMap() *Map {
@@ -28,15 +34,16 @@ func NewMap() *Map {
 	return &Map{
 		Locations: make(map[string]*LocationEntity),
 		Grids:     make(map[string]*Grid),
-		Mu:        sync.RWMutex{}, // because of h3 index 6 can reach
+		Mu:        sync.RWMutex{},
+		Stat:      Stats{},
 	}
 }
 
-func (m *Map) Stats() (int, int) {
+func (m *Map) Stats() Stats {
 	m.Mu.RLock()
 	defer m.Mu.RUnlock()
 
-	return len(m.Locations), len(m.Grids)
+	return m.Stat
 }
 
 func (m *Map) Save(locId string, lat float64, lon float64) error {
@@ -91,6 +98,7 @@ func (m *Map) createLocation(locId string, lat float64, lon float64) {
 
 	grid := m.getGrid(lat, lon)
 	grid.AddLocation(loc)
+	m.Stat.Locations++
 }
 
 func (m *Map) getGrid(lat float64, lon float64) *Grid {
@@ -107,6 +115,7 @@ func (m *Map) getGrid(lat float64, lon float64) *Grid {
 	if !ok {
 		grid = NewGrid(geoHashString)
 		m.Grids[geoHashString] = grid
+		m.Stat.Grids++
 	}
 
 	return grid
