@@ -65,9 +65,22 @@ func (client *ADSBClient) StartListening(workers int) {
 	for continueScheduling {
 		message, err := reader.ReadString('\n')
 		if err != nil {
-			failureCount++
 			if failureCount > 10 {
 				panic(err)
+			}
+
+			failureCount++
+			log.Println("failed to read message", err)
+			log.Println("Will wait 10 seconds before trying again")
+			time.Sleep(10 * time.Second)
+			log.Println("Trying to reconnect")
+			client.Connection.Close()
+			err := client.Connect()
+			if err != nil {
+				log.Println("failed to reconnect", err)
+				log.Println("Will wait 10 seconds before trying again")
+				time.Sleep(10 * time.Second)
+				continue
 			}
 
 			log.Println("failed to read message", err)
