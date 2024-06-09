@@ -135,7 +135,7 @@ jobs:
 
       - name: Update Kubernetes deployment with new image tag
         run: |
-          cd home-cluster/mapofplanes
+          cd home-cluster/geodb
           for file in *; do
             if [[ -f "$file" ]]; then  # Check if it's a file
               sed -i 's|image: fabricekabongo/geodb:.*|image: fabricekabongo/geodb:${{ github.sha }}|g' "$file"
