@@ -27,9 +27,16 @@ func NewMap() *Map {
 
 	return &Map{
 		Locations: make(map[string]*LocationEntity),
-		Grids:     make(map[string]*Grid, 288130),
+		Grids:     make(map[string]*Grid),
 		Mu:        sync.RWMutex{}, // because of h3 index 6 can reach
 	}
+}
+
+func (m *Map) Stats() (int, int) {
+	m.Mu.RLock()
+	defer m.Mu.RUnlock()
+
+	return len(m.Locations), len(m.Grids)
 }
 
 func (m *Map) Save(locId string, lat float64, lon float64) error {

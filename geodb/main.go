@@ -55,7 +55,7 @@ func main() {
 	}(mList, 0)
 
 	// Start the metrics server
-	opsServer := ops.NewOpsServer(mList)
+	opsServer := ops.NewOpsServer(mList, worldMap)
 	go opsServer.Start()
 
 	writer := server2.NewWriteHandler(worldMap, broadcasts)
