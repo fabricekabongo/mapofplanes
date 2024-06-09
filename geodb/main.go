@@ -4,14 +4,13 @@ import (
 	"encoding/gob"
 	"errors"
 	"fabricekabongo.com/geodb/clustering"
+	"fabricekabongo.com/geodb/ops"
 	server2 "fabricekabongo.com/geodb/server"
 	"fabricekabongo.com/geodb/world"
 	"flag"
 	"github.com/hashicorp/memberlist"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"time"
 )
@@ -28,13 +27,6 @@ func main() {
 	populateEnv()
 	log.Println("Starting metrics server on port 80 /metrics and 20001 for clustering")
 
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		err := http.ListenAndServe(":19998", nil)
-		if err != nil {
-			return
-		}
-	}()
 	flag.Parse()
 
 	gob.Register(&world.LocationEntity{})
@@ -54,12 +46,17 @@ func main() {
 	if errors.Is(err, FailedToExtractIPsFromDNS) {
 		log.Println("Failed to extract IPs from DNS: ", err)
 	}
+
 	defer func(mList *memberlist.Memberlist, timeout time.Duration) {
 		err := mList.Leave(timeout)
 		if err != nil {
 			log.Println("Failed to leave cluster: ", err)
 		}
 	}(mList, 0)
+
+	// Start the metrics server
+	opsServer := ops.NewOpsServer(mList)
+	go opsServer.Start()
 
 	writer := server2.NewWriteHandler(worldMap, broadcasts)
 	reader := server2.NewReadHandler(worldMap)
