@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/gob"
 	"errors"
+	"fabricekabongo.com/geodb/admin"
 	"fabricekabongo.com/geodb/clustering"
-	"fabricekabongo.com/geodb/ops"
 	server2 "fabricekabongo.com/geodb/server"
 	"fabricekabongo.com/geodb/world"
 	"flag"
@@ -63,7 +63,7 @@ func main() {
 	fmt.Println("Admin UI (/) & Metrics(/metrics): 20000")
 	fmt.Println("Clustering: 20001")
 	fmt.Println("===========================================================")
-	opsServer := ops.NewOpsServer(mList, worldMap)
+	opsServer := admin.NewOpsServer(mList, worldMap)
 	go opsServer.Start()
 
 	writer := server2.NewWriteHandler(worldMap, broadcasts)
