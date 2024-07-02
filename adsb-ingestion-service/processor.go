@@ -146,7 +146,7 @@ func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
 		return InvalidLocationCoordinates
 	}
 
-	write, err := writer.Write([]byte(fmt.Sprintf("SAVE mapofplanes %v %v %v", message.HexIdent, message.Latitude, message.Longitude)))
+	write, err := writer.Write([]byte(fmt.Sprintf("SAVE mapofplanes %v %v %v\n", message.HexIdent, message.Latitude, message.Longitude)))
 	if err != nil {
 		log.Println("Failed to write to GeoDB", err)
 		return FailedToWriteToGeoDB
