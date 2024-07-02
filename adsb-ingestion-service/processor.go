@@ -79,14 +79,14 @@ func (p *SBS1Processor) connectToRedis() error {
 	return nil
 }
 
-func (client *SBS1Processor) Close() error {
-	client.closeChannel <- struct{}{}
+func (p *SBS1Processor) Close() error {
+	p.closeChannel <- struct{}{}
 	time.Sleep(3 * time.Second)
-	err := client.geoDB.Close()
+	err := p.geoDB.Close()
 	if err != nil {
 		log.Println("failed to close connection to TCP server", err)
 	}
-	err = client.redis.Close()
+	err = p.redis.Close()
 	if err != nil {
 		log.Println("failed to close connection to Redis server", err)
 	}
@@ -146,7 +146,7 @@ func (p *SBS1Processor) handleLocationMessage(message ADSBMessage) error {
 		return InvalidLocationCoordinates
 	}
 
-	write, err := writer.Write([]byte(fmt.Sprintf("{\"loc_id\":\"%s\",\"lat\":%f,\"lon\":%f}\n", message.HexIdent, message.Latitude, message.Longitude)))
+	write, err := writer.Write([]byte(fmt.Sprintf("SAVE mapofplanes %v %v %v", message.HexIdent, message.Latitude, message.Longitude)))
 	if err != nil {
 		log.Println("Failed to write to GeoDB", err)
 		return FailedToWriteToGeoDB
